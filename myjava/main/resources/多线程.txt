@@ -1,0 +1,126 @@
+并发下，减少了阻塞等待，增加了上下文切换，最后结果可能是加快了速度
+
+Runnable
+Executor接口extends Runnable，void execute(Runnable);不用自己new Thread()
+###### ExecutorService extends Executor######添加了submit(), shutdown(),isShutdown(),awaitTermination(long timeout, TimeUnit unit) ...等方法,submit同execute但返回了Future象，可以对返回做处理。这一系列主要用于提交
+AbstractExecutorService implements ExecutorService
+ThreadPoolExecutor extends AbstractExecutorService
+Executors类，返回(ExecutorService)ThreadPoolExecutor
+
+
+
+
+Future,Runnable
+represents the result of an asynchronous computation
+Methods are provided to check if the computation is
+complete, to wait for its completion, and to retrieve the result of
+the computation
+提供了cancel isCancelled isDone get get(long timeout, TimeUnit unit)方法
+###### RunnableFuture extends Future ####这一系列这一用于对结果作处理
+FutureTask implements RunnableFuture
+
+
+shutdown()已提交的会执行完再关，shutdownNow()立即关
+
+
+
+ExecutorCompletionService implements CompletionService,这个类是Executor的装饰类
+
+ExecutorCompletionService 里面有一个完成队列，QueueingFuture extends FutureTask ，完成任务后，会调用done方法，往里面写task
+
+
+
+
+
+锁：
+    LockSupport类，提供的park(Object lock)阻塞调用方法线程，unpark(Thread t)释放t线程阻塞，应该说是类似于park + 1, unpark - 1，如果线程对应的值 > 0就会阻塞。所以可以先unpark，再park，同样不会阻塞。
+
+
+    QueueingFuture extends FutureTask 重写了done方法，会在completeQueue里面添加已完成任务
+
+
+io密集操作，可以考虑多一些线程，加多上下文切换，减少阻塞
+
+
+
+任务策略：
+        1.AbortPolicy
+        2.DiscardPolicy
+        3.DiscardOldestPolicy
+        4.CallerRunsPolicy
+* RUNNING -> SHUTDOWN
+*    On invocation of shutdown(), perhaps implicitly in finalize()
+* (RUNNING or SHUTDOWN) -> STOP
+*    On invocation of shutdownNow()
+* SHUTDOWN -> TIDYING
+*    When both queue and pool are empty
+* STOP -> TIDYING
+*    When pool is empty
+* TIDYING -> TERMINATED
+*    When the terminated() hook method has completed
+
+volatile 关键字的主要作用就是保证变量的可见性然后还有一个作用是防止指令重排序。
+注意，volatile不具备原子性，这是volatile与java中的synchronized、java.util.concurrent.locks.Lock最大的功能差异，这一点在面试中也是非常容易问到的点。
+原子性：如果你了解事务，那这个概念应该好理解。原子性通常指多个操作不存在只执行一部分的情况，如果全部执行完成那没毛病，如果只执行了一部分，那对不起，你得撤销(即事务中的回滚)已经执行的部分。
+可见性：当多个线程访问同一个变量x时，线程1修改了变量x的值，线程1、线程2...线程n能够立即读取到线程1修改后的值。
+有序性：即程序执行时按照代码书写的先后顺序执行。在Java内存模型中，允许编译器和处理器对指令进行重排序，但是重排序过程不会影响到单线程程序的执行，却会影响到多线程并发执行的正确性。
+(本文不对指令重排作介绍，但不代表它不重要，它是理解JAVA并发原理时非常重要的一个概念)。
+
+
+
+　　而声明变量是 volatile 的，JVM 保证了每次读变量都从内存中读，跳过 CPU cache 这一步。
+
+
+
+GET和POST本质上就是TCP链接，并无差别。但是由于HTTP的规定和浏览器/服务器的限制，导致他们在应用过程中体现出一些不同。
+ GET和POST还有一个重大区别，简单的说：GET产生一个TCP数据包；POST产生两个TCP数据包。对于GET方式的请求，浏览器会把http header和data一并发送出去，服务器响应200（返回数据）；
+而对于POST，浏览器先发送header，服务器响应100 continue，浏览器再发送data，服务器响应200 ok（返回数据）。
+①get请求用来从服务器上获得资源，而post是用来向服务器提交数据；
+
+②get将表单中数据按照name=value的形式，添加到action 所指向的URL 后面，并且两者使用"?"连接，而各个变量之间使用"&"连接；post是将表单中的数据放在HTTP协议的请求头或消息体中，传递到action所指向URL；
+
+③get传输的数据要受到URL长度限制（最大长度是 2048 个字符）；而post可以传输大量的数据，上传文件通常要使用post方式；
+
+④使用get时参数会显示在地址栏上，如果这些数据不是敏感数据，那么可以使用get；对于敏感数据还是应用使用post；
+
+⑤get使用MIME类型application/x-www-form-urlencoded的URL编码（也叫百分号编码）文本的格式传递参数，保证被传送的参数由遵循规范的文本组成，例如一个空格的编码是"%20"。
+
+再来说Unsafe的getAndAddInt，通过反编译可以看到实现代码：
+
+/*
+ * 其中getIntVolatile和compareAndSwapInt都是native方法
+ * getIntVolatile是获取当前的期望值
+ * compareAndSwapInt就是我们平时说的CAS(compare and swap)，通过比较如果内存区的值没有改变，那么就用新值直接给该内存区赋值
+ */
+public final int getAndAddInt(Object paramObject, long paramLong, int paramInt)
+{
+  int i;
+  do
+  {
+    i = getIntVolatile(paramObject, paramLong);
+  } while (!compareAndSwapInt(paramObject, paramLong, i, i + paramInt));
+  return i;
+}
+
+
+
+CAS看起来很爽，但是会导致“ABA问题”。
+AtomicInteger ++i的实现
+public final int incrementAndGet() {
+    for (;;) {
+        int current = get();
+        int next = current + 1;
+        if (compareAndSet(current, next))
+            return next;
+    }
+}
+
+
+If the pool currently has more than corePoolSize threads,
+ * excess threads will be terminated if they have been idle for more
+ * than the keepAliveTime
+ 两种情况：1是超过核心线程池数量的线程，用poll方法获取task时间超过了keepAliveTime的时候
+          2是核心线程池中的线程，配了allowTimeOut的时候，获取task的时间超过了的时候
+ 这两种情况下，都会在finally中执行线程销毁
+
+ // ThreadPoolExecutor里面设LinkedBlockingqueue时，不指定大小的话，就是设了Integer.Max_value的任务缓存，通常，max_threadPool就没什么用了

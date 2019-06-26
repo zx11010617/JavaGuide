@@ -1,0 +1,56 @@
+static final int tableSizeFor(int cap) {
+        int n = cap - 1;
+        n |= n >>> 1;
+        n |= n >>> 2;
+        n |= n >>> 4;
+        n |= n >>> 8;
+        n |= n >>> 16;
+        return (n < 0) ? 1 : (n >= MAXIMUM_CAPACITY) ? MAXIMUM_CAPACITY : n + 1;
+    }
+主要功能是：返回一个大于等于且最接近 cap 的2的幂次方整数，如给定9，返回2的4次方16。
+
+resize()中，扩容两倍后，hash % size ，要么是在原位置，要么是原长度 + 原位置索引。比如： a % b = c -> a % (2 * b) ,要么是 a / b = 2 * n, 要么是 a / b = 2* n + 1,前者就是原位，后者就是移动 b长度的位置
+
+最大数组的size是2 ^ 29因为有个判断 < MAXIMUM_CAPACITY（2 ^ 30）
+if (oldCap > 0) {
+            if (oldCap >= MAXIMUM_CAPACITY) {
+                threshold = Integer.MAX_VALUE;
+                return oldTab;
+            }
+            else if ((newCap = oldCap << 1) < MAXIMUM_CAPACITY &&
+                     oldCap >= DEFAULT_INITIAL_CAPACITY)
+                newThr = oldThr << 1; // double threshold
+        }
+
+
+  // 与1。7不同，这里链表不会倒置
+ Node<K,V> loHead = null, loTail = null;
+                        Node<K,V> hiHead = null, hiTail = null;
+                        Node<K,V> next;
+                        do {
+                            next = e.next;
+                            // 这里只有高位结果会留下来，如果留 下了1，表明，存在与高位与后是1，那么就是高位 * 奇数 + 模数，就是要加上原长度作为偏移
+                            // 否则就是 高位 * 偶数 + 模数
+                            if ((e.hash & oldCap) == 0) {
+                                if (loTail == null)
+                                    loHead = e;
+                                else
+                                    loTail.next = e;
+                                loTail = e;
+                            }
+                            else {
+                                if (hiTail == null)
+                                    hiHead = e;
+                                else
+                                    hiTail.next = e;
+                                hiTail = e;
+                            }
+                        } while ((e = next) != null);
+                        if (loTail != null) {
+                            loTail.next = null;
+                            newTab[j] = loHead;
+                        }
+                        if (hiTail != null) {
+                            hiTail.next = null;
+                            newTab[j + oldCap] = hiHead;
+                        }
